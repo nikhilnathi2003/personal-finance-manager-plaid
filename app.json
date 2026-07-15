@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "51a39ab2-7b16-4bf4-8ffa-2f4e3bd022b5"
+      }
+    },
+    "android": {
+      "package": "com.nikhil_nathi.project"
+    }
+  }
+}

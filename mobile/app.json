@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "My Finance App",
+    "scheme": "thevault",
+    "slug": "my-finance-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0B0E14"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourname.financeapp"
+    },
+    "android": {
+      "package": "com.nikhilnathi.thevault"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26,
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f69002c8-968a-42b6-bb15-2f64514fcae0"
+      }
+    }
+  }
+}
