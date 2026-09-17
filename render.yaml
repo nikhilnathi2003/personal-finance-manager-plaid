@@ -1,6 +1,7 @@
 # Render Blueprint — deploys the backend as a free web service.
-# In Render: New → Blueprint → connect this repo. It reads this file,
-# then asks you to paste the env var values marked sync:false.
+# In Render: New → Blueprint → connect this repo → pick the `rebuild`
+# branch. Render reads this file, then asks you to paste the env var
+# values marked sync:false.
 services:
   - type: web
     name: the-vault-backend
