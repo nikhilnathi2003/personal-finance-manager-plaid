@@ -1,0 +1,27 @@
+# Render Blueprint — deploys the backend as a free web service.
+# In Render: New → Blueprint → connect this repo. It reads this file,
+# then asks you to paste the env var values marked sync:false.
+services:
+  - type: web
+    name: the-vault-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: PLAID_CLIENT_ID
+        sync: false
+      - key: PLAID_SECRET
+        sync: false
+      - key: PLAID_ENV
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

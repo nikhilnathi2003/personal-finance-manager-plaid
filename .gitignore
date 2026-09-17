@@ -1,0 +1,20 @@
+﻿node_modules/
+.env
+.env.*
+!.env.example
+.expo/
+dist/
+build/
+coverage/
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+.DS_Store
+
+# Local secrets — NEVER commit
+*.local.txt
+secrets.local/
+backend/data/
+mobile/config.js
