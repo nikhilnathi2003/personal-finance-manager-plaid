@@ -6,7 +6,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
       "backgroundColor": "#0B0E14"
     },
     "assetBundlePatterns": [
@@ -17,7 +20,14 @@
       "bundleIdentifier": "com.yourname.financeapp"
     },
     "android": {
-      "package": "com.nikhilnathi.thevault"
+      "package": "com.nikhilnathi.thevault",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-foreground.png",
+        "backgroundImage": "./assets/adaptive-background.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       [
