@@ -17,4 +17,5 @@ coverage/
 *.local.txt
 secrets.local/
 backend/data/
-mobile/config.js
+# mobile/config.js is now secret-free (reads EXPO_PUBLIC_* env vars), so it IS committed.
+mobile/.env

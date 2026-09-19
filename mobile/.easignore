@@ -1,0 +1,11 @@
+# EAS uses this instead of .gitignore when deciding what to upload to
+# the build servers. We DO want config.js in the build (it holds the
+# backend URL + API key the app needs) even though it's gitignored from
+# the public repo — so it is intentionally NOT listed here.
+node_modules/
+.expo/
+ios/
+android/
+dist/
+*.log
+.git/
