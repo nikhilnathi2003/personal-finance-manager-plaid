@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, TextInput,
+  TouchableOpacity, TextInput, Modal, Pressable,
 } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +29,7 @@ export default function HomeScreen({ navigation }) {
   const [search, setSearch] = useState('');
   const [month, setMonth] = useState(null); // null = current month
   const [selectedTx, setSelectedTx] = useState(null); // fix-a-category target
+  const [breakdown, setBreakdown] = useState(null); // 'chequing' | 'savings' | null
   const reduceMotion = useReducedMotion();
 
   // Entrance helper — skips animation entirely under reduced-motion.
@@ -110,6 +111,18 @@ export default function HomeScreen({ navigation }) {
     return Object.values(by).sort((a, b) => b.total - a.total);
   })();
 
+  // Per-bank breakdown for a balance bucket (chequing / savings).
+  const bankNameById = (id) =>
+    (dashboard?.bankItems || []).find((b) => b.id === id)?.institution_name || 'Bank';
+  const bucketAccounts = (bucket) =>
+    (dashboard?.accounts || []).filter((a) => {
+      const sub = (a.subtype || '').toLowerCase();
+      if (a.type === 'credit') return false;
+      if (bucket === 'chequing') return sub === 'checking' || sub === 'chequing';
+      if (bucket === 'savings') return sub === 'savings';
+      return false;
+    });
+
   return (
     <View style={styles.root}>
     <ScrollView
@@ -147,14 +160,16 @@ export default function HomeScreen({ navigation }) {
           amount={balances.chequing}
           icon="card"
           colors={T.chequingGrad}
-          subtitle="available to spend"
+          subtitle={bankNames.length > 1 ? 'tap for by-bank' : 'available to spend'}
+          onPress={() => setBreakdown('chequing')}
         />
         <BalanceCard
           label="SAVINGS"
           amount={balances.savings}
           icon="lock-closed"
           colors={T.savingsGrad}
-          subtitle="set aside"
+          subtitle={bankNames.length > 1 ? 'tap for by-bank' : 'set aside'}
+          onPress={() => setBreakdown('savings')}
         />
       </Animated.View>
 
@@ -328,6 +343,32 @@ export default function HomeScreen({ navigation }) {
       onClose={() => setSelectedTx(null)}
       onDelete={selectedTx?.source === 'manual' ? deleteTx : undefined}
     />
+
+    <Modal visible={!!breakdown} transparent animationType="fade" onRequestClose={() => setBreakdown(null)}>
+      <Pressable style={styles.bkBackdrop} onPress={() => setBreakdown(null)}>
+        <Pressable style={styles.bkSheet} onPress={() => {}}>
+          <Text style={styles.bkTitle}>
+            {breakdown === 'savings' ? 'Savings' : 'Chequing'} · by bank
+          </Text>
+          {bucketAccounts(breakdown || 'chequing').map((a) => (
+            <View key={a.id} style={styles.bkRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bkBank} numberOfLines={1}>{bankNameById(a.bank_item_id)}</Text>
+                {a.name ? <Text style={styles.bkAcct} numberOfLines={1}>{a.name}</Text> : null}
+              </View>
+              <Text style={styles.bkAmt}>{money(a.current_balance)}</Text>
+            </View>
+          ))}
+          {bucketAccounts(breakdown || 'chequing').length === 0 && (
+            <Text style={styles.bkEmpty}>No {breakdown} accounts linked yet.</Text>
+          )}
+          <View style={styles.bkTotalRow}>
+            <Text style={styles.bkTotalLabel}>Total</Text>
+            <Text style={styles.bkTotalAmt}>{money(balances[breakdown || 'chequing'])}</Text>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
     </View>
   );
 }
@@ -343,6 +384,23 @@ const styles = StyleSheet.create({
   catBarFill: { height: 6, borderRadius: 3 },
   catAmount: { color: T.text, fontWeight: '700', fontSize: 14, fontVariant: ['tabular-nums'] },
   cashTag: { color: T.gold, fontSize: 12, fontWeight: '700' },
+  bkBackdrop: { flex: 1, backgroundColor: 'rgba(2,4,10,0.7)', justifyContent: 'center', padding: 28 },
+  bkSheet: {
+    backgroundColor: T.elevated, borderRadius: T.radiusLg, borderWidth: 1, borderColor: T.hairline,
+    padding: 20,
+  },
+  bkTitle: { color: T.text, ...type.title, marginBottom: 14 },
+  bkRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 11,
+    borderBottomWidth: 1, borderBottomColor: T.hairline,
+  },
+  bkBank: { color: T.text, fontSize: 15, fontWeight: '700' },
+  bkAcct: { color: T.muted, fontSize: 12, marginTop: 1 },
+  bkAmt: { color: T.text, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  bkEmpty: { color: T.muted, textAlign: 'center', paddingVertical: 12 },
+  bkTotalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
+  bkTotalLabel: { color: T.muted, fontSize: 13, fontWeight: '700', letterSpacing: 1 },
+  bkTotalAmt: { color: T.mint, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   topRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     marginTop: 44, marginBottom: 18,

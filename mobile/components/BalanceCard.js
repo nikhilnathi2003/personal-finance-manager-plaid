@@ -2,10 +2,11 @@ import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  useSharedValue, useAnimatedStyle, withSpring, interpolate,
+  useSharedValue, useAnimatedStyle, withSpring, interpolate, runOnJS,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { T, type, elevation, money, motion } from '../theme';
 
 const MAX_TILT = 6;
@@ -15,10 +16,16 @@ const MAX_TILT = 6;
  * perspective tilt under the finger and a soft sheen — the "spatial"
  * feel adapted to a small tile that sits two-up in a row.
  */
-export default function BalanceCard({ label, amount, icon, colors, subtitle }) {
+export default function BalanceCard({ label, amount, icon, colors, subtitle, onPress }) {
   const rx = useSharedValue(0);
   const ry = useSharedValue(0);
   const size = useSharedValue({ w: 1, h: 1 });
+
+  const firePress = () => {
+    if (!onPress) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
 
   const pan = Gesture.Pan()
     .onUpdate((e) => {
@@ -29,6 +36,12 @@ export default function BalanceCard({ label, amount, icon, colors, subtitle }) {
       rx.value = withSpring(0, motion.soft);
       ry.value = withSpring(0, motion.soft);
     });
+
+  // A quick tap (no drag) opens the per-bank breakdown; a drag tilts.
+  const tap = Gesture.Tap().maxDistance(8).onEnd((_e, success) => {
+    if (success) runOnJS(firePress)();
+  });
+  const gesture = Gesture.Race(tap, pan);
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [
@@ -44,7 +57,7 @@ export default function BalanceCard({ label, amount, icon, colors, subtitle }) {
   }));
 
   return (
-    <GestureDetector gesture={pan}>
+    <GestureDetector gesture={gesture}>
       <Animated.View
         style={[styles.card, elevation.med, cardStyle]}
         onLayout={(e) => { size.value = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height }; }}
@@ -60,6 +73,9 @@ export default function BalanceCard({ label, amount, icon, colors, subtitle }) {
         <View style={styles.head}>
           <Ionicons name={icon} size={16} color="rgba(255,255,255,0.9)" />
           <Text style={styles.label}>{label}</Text>
+          {onPress ? (
+            <Ionicons name="chevron-expand" size={14} color="rgba(255,255,255,0.7)" style={{ marginLeft: 'auto' }} />
+          ) : null}
         </View>
         <Text style={styles.amount} numberOfLines={1} adjustsFontSizeToFit>
           {money(amount)}
