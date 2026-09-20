@@ -70,4 +70,31 @@ router.post('/exchange-public-token', async (req, res) => {
   }
 });
 
+// Remove a linked bank: deletes its accounts + transactions locally and
+// tells Plaid to drop the item. Manual (cash) entries are untouched.
+router.delete('/items/:id', async (req, res) => {
+  const id = req.params.id;
+  const items = db.table('bank_items');
+  const item = items.find((b) => b.id === id);
+  if (!item) return res.status(404).json({ error: 'Bank not found' });
+
+  // Best-effort: tell Plaid to remove the item (tidy; sandbox tokens just error).
+  try { await plaidClient.itemRemove({ access_token: item.plaid_access_token }); } catch (e) {}
+
+  const acctIds = new Set(db.table('accounts').filter((a) => a.bank_item_id === id).map((a) => a.id));
+  const txs = db.table('transactions');
+  for (let i = txs.length - 1; i >= 0; i--) {
+    if (acctIds.has(txs[i].account_id)) txs.splice(i, 1);
+  }
+  const accts = db.table('accounts');
+  for (let i = accts.length - 1; i >= 0; i--) {
+    if (accts[i].bank_item_id === id) accts.splice(i, 1);
+  }
+  const idx = items.findIndex((b) => b.id === id);
+  if (idx !== -1) items.splice(idx, 1);
+
+  await db.save();
+  res.json({ success: true });
+});
+
 module.exports = router;

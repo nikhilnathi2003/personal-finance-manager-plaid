@@ -13,11 +13,29 @@ import ScreenHeader from '../components/ScreenHeader';
 export default function AccountsScreen({ navigation }) {
   const [dashboard, setDashboard] = useState(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      api('/transactions/dashboard').then(setDashboard).catch(() => {});
-    }, [])
-  );
+  const load = useCallback(() => {
+    api('/transactions/dashboard').then(setDashboard).catch(() => {});
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const removeBank = (bank) => {
+    Alert.alert(
+      `Remove ${bank.institution_name}?`,
+      'This removes its accounts and transactions from the app. Your manual cash entries are kept. You can always link it again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try { await api(`/plaid/items/${bank.id}`, { method: 'DELETE' }); load(); }
+            catch (e) { Alert.alert('Could not remove', e.message); }
+          },
+        },
+      ]
+    );
+  };
 
   const netWorth = dashboard?.netWorth || 0;
 
@@ -39,7 +57,12 @@ export default function AccountsScreen({ navigation }) {
 
       {(dashboard?.bankItems || []).map((bank, bi) => (
         <Animated.View key={bank.id} entering={FadeInDown.delay(100 + bi * 80).duration(400)}>
-          <Text style={styles.bankName}>{bank.institution_name}</Text>
+          <View style={styles.bankHeader}>
+            <Text style={styles.bankName}>{bank.institution_name}</Text>
+            <TouchableOpacity onPress={() => removeBank(bank)} hitSlop={10}>
+              <Ionicons name="trash-outline" size={16} color={T.faint} />
+            </TouchableOpacity>
+          </View>
           {(dashboard?.accounts || [])
             .filter((a) => a.bank_item_id === bank.id)
             .map((a) => (
@@ -75,7 +98,11 @@ const styles = StyleSheet.create({
   screenTitle: { color: T.text, fontSize: 26, fontWeight: '800' },
   nwLabel: { color: T.muted, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 8 },
   nwHint: { color: T.faint, fontSize: 12, marginTop: 6 },
-  bankName: { color: T.text, fontSize: 16, fontWeight: '700', marginTop: 22, marginBottom: 10 },
+  bankHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: 22, marginBottom: 10,
+  },
+  bankName: { color: T.text, fontSize: 16, fontWeight: '700' },
   accountRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
   },
