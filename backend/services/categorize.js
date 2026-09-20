@@ -93,6 +93,14 @@ function fromDescription(text, amountIn) {
   if (/interac|e-?transfer|e[-\s]?tfr|etfr|email trf|e-?trsf|virement/.test(t)) {
     return amountIn ? 'interac_in' : 'interac_out';
   }
+  // Credit-card / line-of-credit payments — a transfer, never spending/income.
+  if (/\bto card\b|credit card\s*\/?\s*loc|line of credit|\bloc\s*pay|c\.?c\.? ?pay|mastercard|visa desjardins|payment\s*-\s*thank you|paiement/.test(t)) {
+    return 'cc_payment';
+  }
+  // Internal transfers between your own accounts (Scotia/CIBC wording).
+  if (/internet transfer|customer transfer|account transfer|acct transfer|funds transfer|\btransfer to\b|transfer dr|transfer cr|\bto account\b/.test(t)) {
+    return 'transfer';
+  }
   if (amountIn && /(payroll|paie|direct deposit|dir dep|salary|wages|adp|payroll dep)/.test(t)) {
     return 'salary';
   }
