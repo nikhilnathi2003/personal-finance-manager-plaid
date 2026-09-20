@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, TextInput, Modal, Pressable,
+  TouchableOpacity, TextInput, Modal, Pressable, ActivityIndicator,
 } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +30,8 @@ export default function HomeScreen({ navigation }) {
   const [month, setMonth] = useState(null); // null = current month
   const [selectedTx, setSelectedTx] = useState(null); // fix-a-category target
   const [breakdown, setBreakdown] = useState(null); // 'chequing' | 'savings' | null
+  const [syncing, setSyncing] = useState(false);
+  const lastSync = useRef(0);
   const reduceMotion = useReducedMotion();
 
   // Entrance helper — skips animation entirely under reduced-motion.
@@ -44,7 +46,26 @@ export default function HomeScreen({ navigation }) {
     }
   }, [month]);
 
-  useFocusEffect(useCallback(() => { loadDashboard(); }, [loadDashboard]));
+  // Pull the latest from the banks quietly in the background. Shows the
+  // stored data instantly, then refreshes when the sync finishes. Runs
+  // at most once a minute so bouncing between screens doesn't re-hammer.
+  const autoSync = useCallback(async () => {
+    if (Date.now() - lastSync.current < 60000) return;
+    lastSync.current = Date.now();
+    setSyncing(true);
+    try {
+      await api('/transactions/sync-now', { method: 'POST' });
+      await loadDashboard();
+    } catch (e) {
+      // stay quiet — a flaky bank shouldn't disrupt the screen
+    }
+    setSyncing(false);
+  }, [loadDashboard]);
+
+  useFocusEffect(useCallback(() => {
+    loadDashboard();
+    autoSync();
+  }, [loadDashboard, autoSync]));
 
   const changeMonth = (m) => { setMonth(m); setDashboard(null); loadDashboard(m); };
 
@@ -70,6 +91,7 @@ export default function HomeScreen({ navigation }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    lastSync.current = Date.now();
     try {
       await api('/transactions/sync-now', { method: 'POST' });
       await loadDashboard();
@@ -135,7 +157,15 @@ export default function HomeScreen({ navigation }) {
     >
       <View style={styles.topRow}>
         <View>
-          <Text style={styles.screenTitle}>Overview</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.screenTitle}>Overview</Text>
+            {syncing && (
+              <View style={styles.syncPill}>
+                <ActivityIndicator size="small" color={T.violet} />
+                <Text style={styles.syncText}>syncing…</Text>
+              </View>
+            )}
+          </View>
           <View style={{ marginTop: 8 }}>
             <MonthSwitcher month={month} onChange={changeMonth} />
           </View>
@@ -407,6 +437,12 @@ const styles = StyleSheet.create({
   },
   kicker: { color: T.muted, ...type.meta, letterSpacing: 1.5, textTransform: 'uppercase' },
   screenTitle: { color: T.text, ...type.h1, marginTop: 2 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  syncPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4,
+    backgroundColor: T.violetDim, borderRadius: T.pill, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  syncText: { color: T.violet, fontSize: 11, fontWeight: '700' },
 
   balanceRow: { flexDirection: 'row', gap: 12 },
   combinedRow: {
