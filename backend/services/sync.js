@@ -37,6 +37,19 @@ async function syncBankItem(bankItem) {
   // Your saved category corrections, keyed by merchant.
   const overrides = Object.fromEntries(db.table('overrides').map((o) => [o.match_key, o]));
   const txs = db.table('transactions');
+  const startStr = startDate.toISOString().split('T')[0];
+  const itemAccountIds = new Set(Object.values(accountIdMap));
+
+  // RECONCILE: drop this bank's transactions inside the synced window, then
+  // rebuild them from Plaid's current response. Without this, a charge that
+  // goes pending -> posted (Plaid changes its id) lingers as a DUPLICATE and
+  // inflates spending. Manual (cash) entries and other banks are left alone.
+  for (let i = txs.length - 1; i >= 0; i--) {
+    const t = txs[i];
+    if (t.source !== 'manual' && itemAccountIds.has(t.account_id) && t.date >= startStr) {
+      txs.splice(i, 1);
+    }
+  }
 
   for (const tx of response.data.transactions) {
     const localAccountId = accountIdMap[tx.account_id];
@@ -52,7 +65,8 @@ async function syncBankItem(bankItem) {
       if (entry && entry.type !== 'transfer') is_income = entry.type === 'income';
     }
 
-    const row = {
+    txs.push({
+      id: db.uid(),
       account_id: localAccountId,
       plaid_transaction_id: tx.transaction_id,
       amount: tx.amount,
@@ -63,11 +77,7 @@ async function syncBankItem(bankItem) {
       date: tx.date,
       is_income,
       source: 'plaid',
-    };
-
-    const existing = txs.find((t) => t.plaid_transaction_id === tx.transaction_id);
-    if (existing) Object.assign(existing, row);
-    else txs.push({ id: db.uid(), ...row });
+    });
   }
 
   await db.save();
