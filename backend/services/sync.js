@@ -84,6 +84,35 @@ async function syncBankItem(bankItem) {
   return response.data.transactions.length;
 }
 
+// Detect money you moved between YOUR OWN linked accounts (an e-transfer
+// or transfer out of one account matched by an in of the same amount into
+// another, within a few days) and mark both sides as an internal Transfer
+// so they're excluded from income AND spending. Runs after a sync.
+function reconcileTransfers() {
+  const txs = db.table('transactions').filter((t) => t.source !== 'manual');
+  const transferish = (t) =>
+    ['interac_in', 'interac_out', 'transfer', 'cc_payment'].includes(t.category_key);
+
+  const outs = txs.filter((t) => transferish(t) && t.amount > 0);   // money out
+  const ins = txs.filter((t) => transferish(t) && t.amount < 0);    // money in
+  const usedIn = new Set();
+
+  for (const o of outs) {
+    const match = ins.find((i) =>
+      !usedIn.has(i.id) &&
+      i.account_id !== o.account_id &&
+      Math.abs(Math.abs(i.amount) - Math.abs(o.amount)) < 0.01 &&
+      Math.abs(new Date(i.date) - new Date(o.date)) <= 3 * 86400000);
+    if (!match) continue;
+    usedIn.add(match.id);
+    for (const [t, income] of [[o, false], [match, true]]) {
+      t.category = 'Transfer';
+      t.category_key = 'transfer';
+      t.is_income = income;
+    }
+  }
+}
+
 async function syncAllUsersTransactions() {
   for (const item of db.table('bank_items')) {
     try {
@@ -93,6 +122,8 @@ async function syncAllUsersTransactions() {
       console.error(`Failed to sync bank item ${item.id}:`, err.response?.data || err.message);
     }
   }
+  reconcileTransfers();
+  await db.save();
 }
 
-module.exports = { syncBankItem, syncAllUsersTransactions };
+module.exports = { syncBankItem, syncAllUsersTransactions, reconcileTransfers };

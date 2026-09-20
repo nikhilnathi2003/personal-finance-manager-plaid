@@ -57,13 +57,13 @@ const CATALOG = {
 // Known merchants → category key. Matched as a case-insensitive
 // substring of merchant_name OR the raw description.
 const MERCHANT_RULES = [
-  // Food delivery
-  [/uber\s*eats|ubereats/, 'food_delivery'],
-  [/doordash|door dash/, 'food_delivery'],
-  [/skip\s*the\s*dishes|skipthedishes/, 'food_delivery'],
-  [/grubhub|postmates|foodora|instacart/, 'food_delivery'],
-  // Rideshare & taxi  (note: plain "uber" AFTER uber eats above)
-  [/\buber\b|\blyft\b/, 'rideshare'],
+  // Food delivery (handle "UBER *EATS", "UBER-EATS", etc.)
+  [/uber[\s.*_-]*eats|ubereats/, 'food_delivery'],
+  [/doordash|door\s*dash/, 'food_delivery'],
+  [/skip\s*the\s*dishes|skipthedishes|skip the dishes/, 'food_delivery'],
+  [/grubhub|postmates|foodora|instacart|fantuan/, 'food_delivery'],
+  // Rideshare & taxi  (plain uber / lyft, AFTER uber eats above)
+  [/\buber\b|uber\s*\*?\s*trip|lyft/, 'rideshare'],
   [/taxi|\bcab\b|beck\b/, 'rideshare'],
   // Coffee
   [/tim\s*hortons|starbucks|second cup|mccafe|coffee/, 'coffee'],
@@ -90,7 +90,7 @@ const MERCHANT_RULES = [
 function fromDescription(text, amountIn) {
   const t = text.toLowerCase();
 
-  if (/interac|e-?transfer|etrsf|email trfs|virement/.test(t)) {
+  if (/interac|e-?transfer|e[-\s]?tfr|etfr|email trf|e-?trsf|virement/.test(t)) {
     return amountIn ? 'interac_in' : 'interac_out';
   }
   if (amountIn && /(payroll|paie|direct deposit|dir dep|salary|wages|adp|payroll dep)/.test(t)) {

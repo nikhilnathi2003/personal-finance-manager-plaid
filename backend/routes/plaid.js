@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const plaidClient = require('../services/plaidClient');
 const db = require('../services/db');
-const { syncBankItem } = require('../services/sync');
+const { syncBankItem, reconcileTransfers } = require('../services/sync');
 const { CountryCode, Products } = require('plaid');
 
 // STEP 1: get a link_token to open Plaid's secure bank-login widget.
@@ -63,6 +63,8 @@ router.post('/exchange-public-token', async (req, res) => {
     await db.save();
 
     await syncBankItem(bankItem);
+    reconcileTransfers();
+    await db.save();
     res.json({ success: true, bankItemId: bankItem.id });
   } catch (err) {
     console.error(err.response?.data || err.message);
