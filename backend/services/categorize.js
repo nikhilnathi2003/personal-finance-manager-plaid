@@ -241,12 +241,20 @@ function categorize(tx) {
     PRIMARY_MAP[primary] ||
     'other';
 
-  const entry = CATALOG[key] || CATALOG.other;
+  let entry = CATALOG[key] || CATALOG.other;
 
-  // Decide income vs expense from the resolved category's type, but
-  // always trust the money direction as the tie-breaker: a "transfer"
-  // that actually brought money in still shows in the ledger, and a
-  // category tagged income can't apply to money going out.
+  // Sanity against the money direction — this is the big one:
+  // • Money IN can never be "spending" (a paycheck, refund, or deposit
+  //   that we couldn't label precisely becomes Other Income, not an expense).
+  // • Money OUT can never be "income".
+  if (amountIn && entry.type === 'expense') {
+    key = 'income_other';
+    entry = CATALOG.income_other;
+  } else if (!amountIn && entry.type === 'income') {
+    key = 'other';
+    entry = CATALOG.other;
+  }
+
   let is_income;
   if (entry.type === 'income') is_income = true;
   else if (entry.type === 'expense') is_income = false;
