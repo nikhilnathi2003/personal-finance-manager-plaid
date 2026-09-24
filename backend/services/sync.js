@@ -62,7 +62,10 @@ async function syncBankItem(bankItem) {
       categoryKey = ov.category_key;
       category = ov.category;
       const entry = CATALOG[ov.category_key];
-      if (entry && entry.type !== 'transfer') is_income = entry.type === 'income';
+      if (entry) {
+        // income/expense are fixed; transfers and Interac follow the money direction
+        is_income = entry.type === 'income' ? true : entry.type === 'expense' ? false : tx.amount < 0;
+      }
     }
 
     txs.push({
@@ -113,17 +116,31 @@ function reconcileTransfers() {
   }
 }
 
+// Syncs every linked bank in parallel and records each one's status, so a
+// broken connection (e.g. CIBC asking you to log in again) is visible in
+// the app instead of silently showing stale numbers.
 async function syncAllUsersTransactions() {
-  for (const item of db.table('bank_items')) {
-    try {
-      const count = await syncBankItem(item);
-      console.log(`Synced ${count} transactions for bank item ${item.id}`);
-    } catch (err) {
-      console.error(`Failed to sync bank item ${item.id}:`, err.response?.data || err.message);
+  const items = db.table('bank_items');
+  const results = await Promise.allSettled(items.map((item) => syncBankItem(item)));
+  const now = new Date().toISOString();
+
+  const summary = items.map((item, i) => {
+    const r = results[i];
+    if (r.status === 'fulfilled') {
+      item.error_code = null;
+      item.last_synced_at = now;
+      return { id: item.id, name: item.institution_name, ok: true, count: r.value };
     }
-  }
+    const err = r.reason;
+    item.error_code = err?.response?.data?.error_code || 'SYNC_FAILED';
+    item.error_at = now;
+    console.error(`Failed to sync ${item.institution_name}:`, err?.response?.data || err?.message);
+    return { id: item.id, name: item.institution_name, ok: false, error: item.error_code };
+  });
+
   reconcileTransfers();
   await db.save();
+  return summary;
 }
 
 module.exports = { syncBankItem, syncAllUsersTransactions, reconcileTransfers };

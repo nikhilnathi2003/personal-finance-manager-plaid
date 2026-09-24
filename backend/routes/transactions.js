@@ -11,8 +11,8 @@ const { CATALOG, matchKey } = require('../services/categorize');
 // Manual pull-to-refresh — re-sync every linked bank.
 router.post('/sync-now', async (req, res) => {
   try {
-    await syncAllUsersTransactions();
-    res.json({ success: true });
+    const banks = await syncAllUsersTransactions();
+    res.json({ success: true, banks });
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).json({ error: 'Sync failed' });
@@ -59,7 +59,9 @@ router.post('/:id/category', async (req, res) => {
     const tx = txs.find((t) => t.id === req.params.id);
     if (!tx) return res.status(404).json({ error: 'Transaction not found' });
 
-    const is_income = entry.type === 'income' ? true : entry.type === 'expense' ? false : tx.is_income;
+    // income/expense are fixed; Interac and transfers follow each row's money direction.
+    const incomeFor = (t) =>
+      entry.type === 'income' ? true : entry.type === 'expense' ? false : t.amount < 0;
 
     // Update this transaction + same-merchant siblings.
     const key = matchKey(tx);
@@ -70,7 +72,7 @@ router.post('/:id/category', async (req, res) => {
       if (t.id === tx.id || sameMerchant) {
         t.category = entry.label;
         t.category_key = categoryKey;
-        t.is_income = is_income;
+        t.is_income = incomeFor(t);
       }
     }
 
@@ -99,7 +101,7 @@ router.post('/manual', async (req, res) => {
     if (!entry) return res.status(400).json({ error: 'Pick a category' });
     if (!value || value <= 0) return res.status(400).json({ error: 'Enter an amount' });
 
-    const is_income = entry.type === 'income';
+    const is_income = entry.type === 'income' || categoryKey === 'interac_in';
     const signed = is_income ? -Math.abs(value) : Math.abs(value); // Plaid: negative = money in
 
     const row = {

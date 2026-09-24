@@ -11,7 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 export const CATEGORY_META = {
   // ---- Income (greens / teals) ----
   salary:         { label: 'Salary',            icon: 'briefcase',        color: '#3EE6B0', flow: 'income' },
-  interac_in:     { label: 'Interac e-Transfer', icon: 'swap-horizontal', color: '#5FE0C0', flow: 'income' },
   interest:       { label: 'Interest',          icon: 'trending-up',      color: '#7CE38B', flow: 'income' },
   refund:         { label: 'Refund',            icon: 'return-down-back',  color: '#9BE870', flow: 'income' },
   income_other:   { label: 'Other Income',      icon: 'add-circle',        color: '#5FB7FF', flow: 'income' },
@@ -36,8 +35,11 @@ export const CATEGORY_META = {
   fees:           { label: 'Fees & Charges',    icon: 'alert-circle',      color: '#FF7A7A', flow: 'expense' },
   cash:           { label: 'Cash & ATM',        icon: 'cash',              color: '#A0A8BC', flow: 'expense' },
 
+  // ---- Interac e-Transfers — their own section, not income/spending ----
+  interac_in:     { label: 'Interac Received',  icon: 'arrow-down-circle', color: '#FFB84D', flow: 'interac' },
+  interac_out:    { label: 'Interac Sent',      icon: 'arrow-up-circle',   color: '#FFB84D', flow: 'interac' },
+
   // ---- Transfers (muted / neutral) ----
-  interac_out:    { label: 'Interac Sent',      icon: 'swap-horizontal',   color: '#8A93A8', flow: 'transfer' },
   transfer:       { label: 'Transfer',          icon: 'swap-horizontal',   color: '#8A93A8', flow: 'transfer' },
   cc_payment:     { label: 'Card Payment',      icon: 'card',              color: '#8A93A8', flow: 'transfer' },
 
@@ -45,7 +47,9 @@ export const CATEGORY_META = {
 };
 
 // Ordered keys for the category picker (fix-a-category + manual add).
-export const INCOME_KEYS = ['salary', 'interac_in', 'interest', 'refund', 'income_other'];
+export const INCOME_KEYS = ['salary', 'interest', 'refund', 'income_other'];
+export const INTERAC_KEYS = ['interac_in', 'interac_out'];
+export const TRANSFER_KEYS = ['transfer', 'cc_payment'];
 export const EXPENSE_KEYS = [
   'food_delivery', 'dining', 'coffee', 'groceries', 'rideshare', 'transit', 'fuel',
   'shopping', 'subscriptions', 'entertainment', 'rent', 'utilities', 'phone_internet',

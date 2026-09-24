@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
   TouchableOpacity, TextInput, Modal, Pressable, ActivityIndicator,
@@ -6,6 +6,19 @@ import {
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const CACHE_KEY = 'dashboard:current-month';
+
+// "just now", "4 min ago", "2 h ago", "3 d ago"
+const ago = (iso) => {
+  if (!iso) return null;
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.round(mins / 60);
+  return h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
+};
 
 import { api } from '../utils/api';
 import { T, type, money } from '../theme';
@@ -37,10 +50,20 @@ export default function HomeScreen({ navigation }) {
   // Entrance helper — skips animation entirely under reduced-motion.
   const rise = (delay) => (reduceMotion ? undefined : FadeInDown.delay(delay).duration(460));
 
+  // Show the last-saved numbers the instant the app opens (no waiting on
+  // the server), then replace them with fresh data when it answers.
+  useEffect(() => {
+    AsyncStorage.getItem(CACHE_KEY)
+      .then((raw) => { if (raw) setDashboard((d) => d || JSON.parse(raw)); })
+      .catch(() => {});
+  }, []);
+
   const loadDashboard = useCallback(async (m = month) => {
     try {
       setError(null);
-      setDashboard(await api('/transactions/dashboard' + (m ? `?month=${m}` : '')));
+      const data = await api('/transactions/dashboard' + (m ? `?month=${m}` : ''));
+      setDashboard(data);
+      if (!m) AsyncStorage.setItem(CACHE_KEY, JSON.stringify(data)).catch(() => {});
     } catch (e) {
       setError(e.message);
     }
@@ -104,10 +127,24 @@ export default function HomeScreen({ navigation }) {
   const balances = dashboard?.balances || { chequing: 0, savings: 0, credit: 0, other: 0 };
   const leftover = dashboard?.leftover || 0;
   const positive = leftover >= 0;
-  const monthName = new Date().toLocaleString('en-US', { month: 'long' });
+  const monthName = (() => {
+    const key = dashboard?.month; // 'YYYY-MM'
+    if (!key) return new Date().toLocaleString('en-US', { month: 'long' });
+    const [y, m] = key.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+  })();
   const bankNames = (dashboard?.bankItems || [])
     .map((b) => b.institution_name)
     .filter(Boolean);
+
+  // Banks whose connection broke (e.g. CIBC wanting you to log in again).
+  const brokenBanks = (dashboard?.bankItems || []).filter((b) => b.error_code);
+  const updatedAgo = ago(dashboard?.lastSynced);
+
+  // Interac e-Transfers — their own section, separate from income/spending.
+  const interacIn = dashboard?.interacIn || 0;
+  const interacOut = dashboard?.interacOut || 0;
+  const interacNet = interacIn - interacOut;
 
   const allTx = dashboard?.transactions || [];
   const transactions = allTx.filter((t) => {
@@ -132,6 +169,8 @@ export default function HomeScreen({ navigation }) {
     });
     return Object.values(by).sort((a, b) => b.total - a.total);
   })();
+
+  const interacTxs = allTx.filter((t) => flowOf(t) === 'interac');
 
   // Per-bank breakdown for a balance bucket (chequing / savings).
   const bankNameById = (id) =>
@@ -166,8 +205,11 @@ export default function HomeScreen({ navigation }) {
               </View>
             )}
           </View>
-          <View style={{ marginTop: 8 }}>
+          <View style={styles.monthRow}>
             <MonthSwitcher month={month} onChange={changeMonth} />
+            {updatedAgo && !syncing && (
+              <Text style={styles.updatedText}>Updated {updatedAgo}</Text>
+            )}
           </View>
         </View>
         <TouchableOpacity onPress={() => navigation.navigate('Accounts')} hitSlop={12}>
@@ -178,10 +220,33 @@ export default function HomeScreen({ navigation }) {
       {error && (
         <GlassCard style={{ marginBottom: 16, borderColor: T.coral }}>
           <Text style={{ color: T.coral, fontSize: 13 }}>
-            Couldn't reach the server — {error}. Pull down to retry.
+            {dashboard
+              ? "Showing your last saved numbers — can't reach the server right now. Pull down to retry."
+              : `Couldn't reach the server — ${error}. Pull down to retry.`}
           </Text>
         </GlassCard>
       )}
+
+      {/* A bank whose login expired shows OLD numbers until you reconnect it. */}
+      {brokenBanks.map((b) => (
+        <TouchableOpacity
+          key={b.id}
+          activeOpacity={0.85}
+          style={styles.reconnectBanner}
+          onPress={() => navigation.navigate('ConnectBank', {
+            reconnect: { id: b.id, name: b.institution_name },
+          })}
+        >
+          <Ionicons name="alert-circle" size={20} color={T.gold} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.reconnectTitle}>{b.institution_name} needs you to log in again</Text>
+            <Text style={styles.reconnectSub}>
+              Its balances are frozen{b.last_synced_at ? ` since ${ago(b.last_synced_at)}` : ''}. Tap to reconnect.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={T.gold} />
+        </TouchableOpacity>
+      ))}
 
       {/* Two live balances — chequing + savings */}
       <Animated.View entering={rise(60)} style={styles.balanceRow}>
@@ -237,16 +302,64 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.statRow}>
             <View style={styles.stat}>
               <Text style={styles.statLabel}>INCOME</Text>
-              <Text style={[styles.statValue, { color: T.mint }]}>{money(dashboard?.income)}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.statValue, { color: T.mint }]}>{money(dashboard?.income)}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.stat}>
               <Text style={styles.statLabel}>SPENT</Text>
-              <Text style={[styles.statValue, { color: '#FFD3DC' }]}>{money(dashboard?.spending)}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.statValue, { color: '#FFD3DC' }]}>{money(dashboard?.spending)}</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.stat}>
+              <Text style={styles.statLabel}>INTERAC</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.statValue, { color: '#FFD08A' }]}>
+                {interacNet >= 0 ? '+' : '−'}{money(interacNet)}
+              </Text>
             </View>
           </View>
         </TiltCard>
         {!reduceMotion && <Text style={styles.tiltHint}>hold the card and tilt it ↑</Text>}
+      </Animated.View>
+
+      {/* Interac e-Transfers — kept separate from regular income & spending */}
+      <Animated.View entering={rise(200)}>
+        <Text style={styles.sectionTitle}>Interac e-Transfers</Text>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          disabled={interacTxs.length === 0}
+          onPress={() => navigation.navigate('CategoryDetail', {
+            category: 'Interac e-Transfers', categoryKey: 'interac_in', transactions: interacTxs,
+          })}
+        >
+          <GlassCard style={styles.interacCard}>
+            <View style={styles.interacCol}>
+              <Ionicons name="arrow-down-circle" size={18} color={T.mint} />
+              <Text style={styles.interacLabel}>Received</Text>
+              <Text style={[styles.interacAmt, { color: T.mint }]} numberOfLines={1} adjustsFontSizeToFit>
+                +{money(interacIn)}
+              </Text>
+            </View>
+            <View style={styles.interacDivider} />
+            <View style={styles.interacCol}>
+              <Ionicons name="arrow-up-circle" size={18} color={T.coral} />
+              <Text style={styles.interacLabel}>Sent</Text>
+              <Text style={[styles.interacAmt, { color: T.coral }]} numberOfLines={1} adjustsFontSizeToFit>
+                −{money(interacOut)}
+              </Text>
+            </View>
+            <View style={styles.interacDivider} />
+            <View style={styles.interacCol}>
+              <Ionicons name="swap-vertical" size={18} color="#FFB84D" />
+              <Text style={styles.interacLabel}>{interacTxs.length} transfers</Text>
+              <Text style={[styles.interacAmt, { color: '#FFB84D' }]} numberOfLines={1}>
+                {interacTxs.length ? 'View ›' : '—'}
+              </Text>
+            </View>
+          </GlassCard>
+        </TouchableOpacity>
+        <Text style={styles.interacNote}>
+          Moving money between your own accounts isn't counted here — only e-transfers with other people.
+        </Text>
       </Animated.View>
 
       {/* Where it went */}
@@ -324,8 +437,13 @@ export default function HomeScreen({ navigation }) {
                 {item.category} · {item.date?.slice(5)}
               </Text>
             </View>
-            <Text style={[styles.txAmount, item.is_income && styles.txIncome]}>
-              {item.is_income ? '+' : '−'}{money(item.amount)}
+            <Text style={[
+              styles.txAmount,
+              item.is_income && styles.txIncome,
+              flowOf(item) === 'interac' && styles.txInterac,
+              flowOf(item) === 'transfer' && styles.txTransfer,
+            ]}>
+              {item.amount < 0 ? '+' : '−'}{money(item.amount)}
             </Text>
           </TouchableOpacity>
         </Animated.View>
@@ -443,6 +561,25 @@ const styles = StyleSheet.create({
     backgroundColor: T.violetDim, borderRadius: T.pill, paddingHorizontal: 10, paddingVertical: 4,
   },
   syncText: { color: T.violet, fontSize: 11, fontWeight: '700' },
+  monthRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+  updatedText: { color: T.faint, fontSize: 11, fontWeight: '600' },
+
+  reconnectBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14,
+    backgroundColor: 'rgba(255,198,99,0.10)', borderWidth: 1, borderColor: 'rgba(255,198,99,0.40)',
+    borderRadius: T.radiusSm, padding: 14,
+  },
+  reconnectTitle: { color: T.gold, fontSize: 14, fontWeight: '800' },
+  reconnectSub: { color: 'rgba(255,198,99,0.8)', fontSize: 12, marginTop: 2 },
+
+  interacCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
+  interacCol: { flex: 1, alignItems: 'center', gap: 4 },
+  interacLabel: { color: T.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  interacAmt: { fontSize: 16, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  interacDivider: { width: 1, alignSelf: 'stretch', backgroundColor: T.hairline },
+  interacNote: { color: T.faint, fontSize: 11, marginTop: 8, lineHeight: 16 },
+  txInterac: { color: '#FFB84D' },
+  txTransfer: { color: T.muted },
 
   balanceRow: { flexDirection: 'row', gap: 12 },
   combinedRow: {

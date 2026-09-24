@@ -16,12 +16,11 @@
 
 // The catalog. `key` is the stable id stored in the DB and shared
 // with the mobile app (see mobile/utils/categories.js). `type` tells
-// the dashboard whether it counts as income, spending, or an internal
-// transfer that should be excluded from both totals.
+// the dashboard whether it counts as income, spending, Interac (its own
+// separate flow), or an internal transfer excluded from all totals.
 const CATALOG = {
   // ---- Income ----
   salary:            { key: 'salary',            label: 'Salary',            type: 'income' },
-  interac_in:        { key: 'interac_in',        label: 'Interac e-Transfer', type: 'income' },
   interest:          { key: 'interest',          label: 'Interest',          type: 'income' },
   refund:            { key: 'refund',            label: 'Refund',            type: 'income' },
   income_other:      { key: 'income_other',      label: 'Other Income',      type: 'income' },
@@ -46,8 +45,12 @@ const CATALOG = {
   fees:              { key: 'fees',              label: 'Fees & Charges',    type: 'expense' },
   cash:              { key: 'cash',              label: 'Cash & ATM',        type: 'expense' },
 
+  // ---- Interac e-Transfers — their own flow, shown separately from
+  //      regular income and spending (self-transfers become 'transfer') ----
+  interac_in:        { key: 'interac_in',        label: 'Interac Received',  type: 'interac' },
+  interac_out:       { key: 'interac_out',       label: 'Interac Sent',      type: 'interac' },
+
   // ---- Transfers (excluded from income/spend totals) ----
-  interac_out:       { key: 'interac_out',       label: 'Interac Sent',      type: 'transfer' },
   transfer:          { key: 'transfer',          label: 'Transfer',          type: 'transfer' },
   cc_payment:        { key: 'cc_payment',        label: 'Card Payment',      type: 'transfer' },
 

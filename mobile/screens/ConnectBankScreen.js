@@ -23,7 +23,10 @@ try {
   plaidLoadError = e.message;
 }
 
-export default function ConnectBankScreen({ navigation }) {
+export default function ConnectBankScreen({ navigation, route }) {
+  // When opened from a "needs you to log in again" banner, we re-login the
+  // EXISTING connection (Plaid update mode) instead of adding a new bank.
+  const reconnect = route?.params?.reconnect; // { id, name } | undefined
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const plaidAvailable = !!(
@@ -39,7 +42,9 @@ export default function ConnectBankScreen({ navigation }) {
     }
     (async () => {
       try {
-        const json = await api('/plaid/create-link-token', { method: 'POST' });
+        const json = reconnect
+          ? await api(`/plaid/update-link-token/${reconnect.id}`, { method: 'POST' })
+          : await api('/plaid/create-link-token', { method: 'POST' });
         plaid.create({ token: json.link_token });
       } catch (e) {
         setError(e.message);
@@ -52,14 +57,20 @@ export default function ConnectBankScreen({ navigation }) {
     plaid.open({
       onSuccess: async (success) => {
         try {
-          await api('/plaid/exchange-public-token', {
-            method: 'POST',
-            body: {
-              publicToken: success.publicToken,
-              institutionName: success.metadata?.institution?.name,
-            },
-          });
-          Alert.alert('Bank connected 🎉', 'Your transactions are syncing now.');
+          if (reconnect) {
+            // Same connection, fresh login — just pull the latest data.
+            await api('/transactions/sync-now', { method: 'POST' });
+            Alert.alert(`${reconnect.name} reconnected ✅`, 'Your latest balances and transactions are in.');
+          } else {
+            await api('/plaid/exchange-public-token', {
+              method: 'POST',
+              body: {
+                publicToken: success.publicToken,
+                institutionName: success.metadata?.institution?.name,
+              },
+            });
+            Alert.alert('Bank connected 🎉', 'Your transactions are syncing now.');
+          }
           navigation.goBack();
         } catch (e) {
           Alert.alert('Could not save the connection', e.message);
@@ -73,7 +84,7 @@ export default function ConnectBankScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Link your bank</Text>
+      <Text style={styles.title}>{reconnect ? `Reconnect ${reconnect.name}` : 'Link your bank'}</Text>
 
       {!plaidAvailable ? (
         <View>
@@ -99,7 +110,9 @@ export default function ConnectBankScreen({ navigation }) {
       ) : (
         <View>
           <Text style={styles.subtitle}>
-            Connect CIBC, Scotiabank, or any Canadian bank Plaid supports.
+            {reconnect
+              ? `${reconnect.name} asked you to log in again (banks do this now and then). Log in once and your balances start updating again — nothing is re-added or lost.`
+              : 'Connect CIBC, Scotiabank, or any Canadian bank Plaid supports.'}
           </Text>
 
           <View style={styles.points}>
@@ -126,7 +139,9 @@ export default function ConnectBankScreen({ navigation }) {
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                 style={styles.button}
               >
-                <Text style={styles.buttonText}>Connect a bank account</Text>
+                <Text style={styles.buttonText}>
+                  {reconnect ? `Log in to ${reconnect.name}` : 'Connect a bank account'}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           )}

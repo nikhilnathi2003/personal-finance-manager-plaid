@@ -59,9 +59,22 @@ export default function AccountsScreen({ navigation }) {
         <Animated.View key={bank.id} entering={FadeInDown.delay(100 + bi * 80).duration(400)}>
           <View style={styles.bankHeader}>
             <Text style={styles.bankName}>{bank.institution_name}</Text>
-            <TouchableOpacity onPress={() => removeBank(bank)} hitSlop={10}>
-              <Ionicons name="trash-outline" size={16} color={T.faint} />
-            </TouchableOpacity>
+            <View style={styles.bankActions}>
+              {bank.error_code ? (
+                <TouchableOpacity
+                  style={styles.reconnectChip}
+                  onPress={() => navigation.navigate('ConnectBank', {
+                    reconnect: { id: bank.id, name: bank.institution_name },
+                  })}
+                >
+                  <Ionicons name="refresh" size={13} color={T.gold} />
+                  <Text style={styles.reconnectChipText}>Reconnect</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={() => removeBank(bank)} hitSlop={10}>
+                <Ionicons name="trash-outline" size={16} color={T.faint} />
+              </TouchableOpacity>
+            </View>
           </View>
           {(dashboard?.accounts || [])
             .filter((a) => a.bank_item_id === bank.id)
@@ -103,6 +116,13 @@ const styles = StyleSheet.create({
     marginTop: 22, marginBottom: 10,
   },
   bankName: { color: T.text, fontSize: 16, fontWeight: '700' },
+  bankActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  reconnectChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(255,198,99,0.12)', borderWidth: 1, borderColor: 'rgba(255,198,99,0.4)',
+    borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  reconnectChipText: { color: T.gold, fontSize: 12, fontWeight: '800' },
   accountRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
   },

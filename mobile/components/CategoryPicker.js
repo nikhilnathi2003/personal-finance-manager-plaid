@@ -6,7 +6,9 @@ import Animated, { SlideInDown, FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { T, type } from '../theme';
-import { CATEGORY_META, INCOME_KEYS, EXPENSE_KEYS } from '../utils/categories';
+import {
+  CATEGORY_META, INCOME_KEYS, EXPENSE_KEYS, INTERAC_KEYS, TRANSFER_KEYS,
+} from '../utils/categories';
 
 function Chip({ ck, active, onPress }) {
   const m = CATEGORY_META[ck];
@@ -60,6 +62,18 @@ export default function CategoryPicker({
             <Text style={styles.group}>SPENDING</Text>
             <View style={styles.grid}>
               {EXPENSE_KEYS.map((ck) => (
+                <Chip key={ck} ck={ck} active={ck === current} onPress={onSelect} />
+              ))}
+            </View>
+            <Text style={styles.group}>INTERAC E-TRANSFER</Text>
+            <View style={styles.grid}>
+              {INTERAC_KEYS.map((ck) => (
+                <Chip key={ck} ck={ck} active={ck === current} onPress={onSelect} />
+              ))}
+            </View>
+            <Text style={styles.group}>MOVING MY OWN MONEY (not counted)</Text>
+            <View style={styles.grid}>
+              {TRANSFER_KEYS.map((ck) => (
                 <Chip key={ck} ck={ck} active={ck === current} onPress={onSelect} />
               ))}
             </View>

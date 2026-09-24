@@ -18,7 +18,9 @@ export default function CategoryDetailScreen({ route, navigation }) {
   const reduceMotion = useReducedMotion();
 
   const meta = categoryMeta(categoryKey);
-  const total = rows.reduce((s, t) => s + Math.abs(t.amount), 0);
+  const inTotal = rows.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const outTotal = rows.filter((t) => t.amount > 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const mixed = inTotal > 0 && outTotal > 0; // e.g. Interac: some received, some sent
 
   const recategorize = async (newKey) => {
     const tx = selected;
@@ -59,7 +61,15 @@ export default function CategoryDetailScreen({ route, navigation }) {
           <View style={[styles.bigIcon, { backgroundColor: meta.color + '22', borderColor: meta.color + '3A' }]}>
             <Ionicons name={meta.icon} size={30} color={meta.color} />
           </View>
-          <Text style={styles.total}>{money(total)}</Text>
+          {mixed ? (
+            <View style={styles.mixedRow}>
+              <Text style={[styles.mixedAmt, { color: T.mint }]}>+{money(inTotal)}</Text>
+              <Text style={styles.mixedSep}>·</Text>
+              <Text style={[styles.mixedAmt, { color: T.coral }]}>−{money(outTotal)}</Text>
+            </View>
+          ) : (
+            <Text style={styles.total}>{money(inTotal + outTotal)}</Text>
+          )}
           <Text style={styles.count}>{rows.length} {rows.length === 1 ? 'transaction' : 'transactions'}</Text>
         </View>
 
@@ -79,8 +89,8 @@ export default function CategoryDetailScreen({ route, navigation }) {
                 </Text>
                 <Text style={styles.txDate}>{item.date}</Text>
               </View>
-              <Text style={[styles.txAmount, item.is_income && { color: T.mint }]}>
-                {item.is_income ? '+' : '−'}{money(item.amount)}
+              <Text style={[styles.txAmount, item.amount < 0 && { color: T.mint }]}>
+                {item.amount < 0 ? '+' : '−'}{money(item.amount)}
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -111,6 +121,9 @@ const styles = StyleSheet.create({
   summary: { alignItems: 'center', marginTop: 12, marginBottom: 6 },
   bigIcon: { width: 68, height: 68, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   total: { color: T.text, ...type.h1, marginTop: 14, fontVariant: ['tabular-nums'] },
+  mixedRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 14 },
+  mixedAmt: { ...type.h2, fontVariant: ['tabular-nums'] },
+  mixedSep: { color: T.faint, fontSize: 20 },
   count: { color: T.muted, fontSize: 13, fontWeight: '600', marginTop: 2 },
   tapHint: { color: T.faint, fontSize: 12, textAlign: 'center', marginTop: 16, marginBottom: 14 },
 

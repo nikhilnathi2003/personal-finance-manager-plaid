@@ -4,7 +4,7 @@ const { CATALOG } = require('./categorize');
 // What kind of money movement is this transaction?
 function flowOf(tx) {
   const entry = tx.category_key && CATALOG[tx.category_key];
-  if (entry) return entry.type; // 'income' | 'expense' | 'transfer'
+  if (entry) return entry.type; // 'income' | 'expense' | 'interac' | 'transfer'
   return tx.is_income ? 'income' : 'expense';
 }
 
@@ -53,7 +53,12 @@ function fetchTransactions(accountIds, start, end) {
 
 // Everything the Home screen needs for one month.
 function getDashboard(month) {
-  const bankItems = db.table('bank_items').map((b) => ({ id: b.id, institution_name: b.institution_name }));
+  const bankItems = db.table('bank_items').map((b) => ({
+    id: b.id,
+    institution_name: b.institution_name,
+    error_code: b.error_code || null,         // e.g. ITEM_LOGIN_REQUIRED
+    last_synced_at: b.last_synced_at || null,
+  }));
   const accounts = db.table('accounts');
   const accountIds = accounts.map((a) => a.id);
 
@@ -77,20 +82,31 @@ function getDashboard(month) {
     incomeByCategory[t.category] = (incomeByCategory[t.category] || 0) + Math.abs(t.amount);
   });
 
+  // Interac e-Transfers — tracked separately from income and spending.
+  const interacTx = txs.filter((t) => flowOf(t) === 'interac');
+  const interacIn = interacTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const interacOut = interacTx.filter((t) => t.amount > 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+
   const netWorth = accounts.reduce((sum, a) => {
     const bal = a.current_balance || 0;
     return a.type === 'credit' ? sum - bal : sum + bal;
   }, 0);
 
+  const lastSynced = bankItems.map((b) => b.last_synced_at).filter(Boolean).sort().pop() || null;
+
   return {
     month: key,
     bankItems,
+    lastSynced,
     accounts,
     accountIds,
     transactions: txs,
     income,
     spending,
-    leftover: income - spending,
+    interacIn,
+    interacOut,
+    // What's actually left: regular income − spending, plus the net of Interac.
+    leftover: income - spending + interacIn - interacOut,
     spendingByCategory,
     incomeByCategory,
     balances: summarizeAccounts(accounts),

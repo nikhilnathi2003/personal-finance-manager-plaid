@@ -24,7 +24,8 @@ export default function AddTransactionScreen({ navigation }) {
   const [error, setError] = useState(null);
 
   const meta = CATEGORY_META[categoryKey];
-  const isIncome = meta.flow === 'income';
+  const isIncome = meta.flow === 'income' || categoryKey === 'interac_in';
+  const flowLabel = meta.flow === 'interac' ? 'Interac' : isIncome ? 'Income' : 'Expense';
   const valid = Number(amount) > 0;
 
   const save = async () => {
@@ -71,7 +72,7 @@ export default function AddTransactionScreen({ navigation }) {
           />
         </View>
         <Text style={styles.flowTag}>
-          {isIncome ? 'Income' : 'Expense'} · {meta.label}
+          {flowLabel} · {meta.label}
         </Text>
 
         {/* Category */}

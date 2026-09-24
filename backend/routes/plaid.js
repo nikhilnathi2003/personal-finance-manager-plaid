@@ -72,6 +72,28 @@ router.post('/exchange-public-token', async (req, res) => {
   }
 });
 
+// Reconnect a bank whose login expired (ITEM_LOGIN_REQUIRED). Plaid's
+// "update mode": you log in again on the bank's page and the SAME
+// connection resumes — no re-adding, no new slot used, history kept.
+router.post('/update-link-token/:id', async (req, res) => {
+  const item = db.table('bank_items').find((b) => b.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Bank not found' });
+  try {
+    const response = await plaidClient.linkTokenCreate({
+      user: { client_user_id: 'local-user' },
+      client_name: 'The Vault',
+      country_codes: [CountryCode.Ca],
+      language: 'en',
+      access_token: item.plaid_access_token, // update mode: no products
+      android_package_name: 'com.nikhilnathi.thevault',
+    });
+    res.json({ link_token: response.data.link_token });
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(500).json({ error: 'Failed to start reconnect' });
+  }
+});
+
 // Remove a linked bank: deletes its accounts + transactions locally and
 // tells Plaid to drop the item. Manual (cash) entries are untouched.
 router.delete('/items/:id', async (req, res) => {
