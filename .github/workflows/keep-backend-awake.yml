@@ -1,0 +1,19 @@
+# Keeps the free Render backend awake so the app opens fast.
+# Render's free tier sleeps after ~15 min idle and then takes 20-60s to
+# wake. This pings the public health check every 10 minutes from
+# 7am to 1am Eastern (11:00-04:59 UTC), leaving it to sleep overnight —
+# which keeps usage well under the free 750 hours/month.
+name: Keep backend awake
+
+on:
+  schedule:
+    - cron: '*/10 0-4,11-23 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping health check
+        run: curl -fsS -m 90 https://the-vault-backend-1bi4.onrender.com/ || echo "ping failed (will retry next run)"
